@@ -100,50 +100,162 @@ class TestDatabase(unittest.TestCase):
 class TestSteamGuard(unittest.TestCase):
     """Тесты для Steam Guard"""
     
+    def setUp(self):
+        """Подготовка к тесту"""
+        self.manager = SteamGuardManager()
+        # Создать valid 20-байт secret для тестирования
+        self.shared_secret_bytes = b'test_secret_20bytes'  # 19 байт, добавим 1
+        self.shared_secret = base64.b64encode(b'0' * 20).decode('utf-8')
+        self.identity_secret = base64.b64encode(b'0' * 32).decode('utf-8')
+    
     def test_totp_generation(self):
         """Тест генерации TOTP кода"""
-        # Использовать известный shared secret для тестирования
-        # Это должен быть валидный base64 encoded string
-        shared_secret = base64.b64encode(b'0' * 20).decode('utf-8')
-        
-        code = SteamGuardUtil.generate_totp(shared_secret)
-        
         # Код должен быть 5 символов и состоять из цифр
+        code, time_left = self.manager.get_steam_guard_code(self.shared_secret)
+        
         self.assertEqual(len(code), 5)
         self.assertTrue(code.isdigit())
+        self.assertGreater(time_left, 0)
+        self.assertLessEqual(time_left, 30)
     
-    def test_time_remaining(self):
-        """Тест получения времени до смены кода"""
-        time_remaining = SteamGuardUtil.get_code_time_remaining()
+    def test_totp_consistency(self):
+        """Тест что один и тот же код генерируется в один временной интервал"""
+        import time
+        timestamp = int(time.time())
         
-        self.assertGreater(time_remaining, 0)
-        self.assertLessEqual(time_remaining, 30)
+        code1, _ = self.manager.get_steam_guard_code(self.shared_secret, timestamp)
+        code2, _ = self.manager.get_steam_guard_code(self.shared_secret, timestamp)
+        
+        # Коды должны быть идентичны при одном временном интервале
+        self.assertEqual(code1, code2)
+    
+    def test_totp_different_intervals(self):
+        """Тест что коды разные в разные временные интервалы"""
+        import time
+        timestamp = int(time.time())
+        
+        code1, _ = self.manager.get_steam_guard_code(self.shared_secret, timestamp)
+        code2, _ = self.manager.get_steam_guard_code(self.shared_secret, timestamp + 30)
+        
+        # Коды должны быть разные в разных 30-секундных интервалах
+        self.assertNotEqual(code1, code2)
+    
+    def test_confirmation_hash(self):
+        """Тест получения confirmation hash"""
+        import time
+        timestamp = int(time.time())
+        
+        hash_conf = self.manager.get_confirmation_hash(timestamp, self.identity_secret, "conf")
+        
+        # Hash должен быть base64 encoded
+        self.assertTrue(all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in hash_conf))
+        self.assertGreater(len(hash_conf), 0)
+    
+    def test_confirmation_hash_different_tags(self):
+        """Тест что разные теги дают разные хеши"""
+        import time
+        timestamp = int(time.time())
+        
+        hash1 = self.manager.get_confirmation_hash(timestamp, self.identity_secret, "conf")
+        hash2 = self.manager.get_confirmation_hash(timestamp, self.identity_secret, "allow")
+        
+        # Разные теги должны давать разные хеши
+        self.assertNotEqual(hash1, hash2)
     
     def test_mafile_creation(self):
         """Тест создания mafile"""
-        manager = SteamGuardManager()
-        
         account_data = {
             'account_name': 'test_account',
-            'shared_secret': base64.b64encode(b'0' * 20).decode('utf-8'),
-            'identity_secret': base64.b64encode(b'0' * 20).decode('utf-8'),
+            'shared_secret': self.shared_secret,
+            'identity_secret': self.identity_secret,
             'revocation_code': 'TEST-CODE'
         }
         
-        mafile_path = manager.create_mafile_from_dict(account_data)
+        mafile_path = self.manager.create_mafile_from_dict(account_data)
         
-        # Проверить что файл создан
-        self.assertTrue(os.path.exists(mafile_path))
+        try:
+            # Проверить что файл создан
+            self.assertTrue(os.path.exists(mafile_path))
+            
+            # Проверить содержимое
+            with open(mafile_path, 'r') as f:
+                mafile = json.load(f)
+            
+            self.assertEqual(mafile['account_name'], 'test_account')
+            self.assertEqual(mafile['shared_secret'], self.shared_secret)
+            self.assertEqual(mafile['identity_secret'], self.identity_secret)
+            self.assertEqual(mafile['revocation_code'], 'TEST-CODE')
+            self.assertTrue(mafile['fully_enrolled'])
+        finally:
+            # Очистка
+            if os.path.exists(mafile_path):
+                os.unlink(mafile_path)
+    
+    def test_mafile_creation_minimal(self):
+        """Тест создания минимального mafile (только обязательные поля)"""
+        account_data = {
+            'account_name': 'minimal_account',
+            'shared_secret': self.shared_secret
+        }
         
-        # Проверить содержимое
-        with open(mafile_path, 'r') as f:
-            mafile = json.load(f)
+        mafile_path = self.manager.create_mafile_from_dict(account_data)
         
-        self.assertEqual(mafile['account_name'], 'test_account')
-        self.assertEqual(mafile['shared_secret'], account_data['shared_secret'])
+        try:
+            with open(mafile_path, 'r') as f:
+                mafile = json.load(f)
+            
+            # Обязательные поля должны присутствовать
+            self.assertIn('shared_secret', mafile)
+            self.assertIn('account_name', mafile)
+            
+            # Опциональные поля должны быть пустыми или по умолчанию
+            self.assertEqual(mafile['identity_secret'], '')
+            self.assertEqual(mafile['revocation_code'], '')
+        finally:
+            if os.path.exists(mafile_path):
+                os.unlink(mafile_path)
+    
+    def test_invalid_shared_secret(self):
+        """Тест на ошибку при неверном shared_secret"""
+        account_data = {
+            'account_name': 'test',
+            'shared_secret': ''  # Пусто
+        }
         
-        # Очистка
-        os.unlink(mafile_path)
+        with self.assertRaises(ValueError):
+            self.manager.create_mafile_from_dict(account_data)
+    
+    def test_import_mafile(self):
+        """Тест импорта mafile"""
+        # Создать mafile
+        account_data = {
+            'account_name': 'import_test',
+            'shared_secret': self.shared_secret,
+            'identity_secret': self.identity_secret,
+            'revocation_code': 'IMPORT-CODE'
+        }
+        
+        mafile_path = self.manager.create_mafile_from_dict(account_data)
+        
+        try:
+            # Импортировать его обратно
+            imported_data = self.manager.import_mafile(mafile_path)
+            
+            self.assertIsNotNone(imported_data)
+            self.assertEqual(imported_data['account_name'], 'import_test')
+            self.assertEqual(imported_data['shared_secret'], self.shared_secret)
+            self.assertEqual(imported_data['identity_secret'], self.identity_secret)
+            self.assertEqual(imported_data['revocation_code'], 'IMPORT-CODE')
+        finally:
+            if os.path.exists(mafile_path):
+                os.unlink(mafile_path)
+    
+    def test_get_steam_guard_code_only(self):
+        """Тест быстрого метода получения кода"""
+        code = self.manager.get_steam_guard_code_only(self.shared_secret)
+        
+        self.assertEqual(len(code), 5)
+        self.assertTrue(code.isdigit())
 
 
 class TestMafileValidator(unittest.TestCase):
@@ -174,6 +286,107 @@ class TestMafileValidator(unittest.TestCase):
         }
         
         self.assertFalse(MafileValidator.validate_mafile(mafile))
+
+
+class TestMafileCreator(unittest.TestCase):
+    """Тесты для MafileCreator"""
+    
+    def setUp(self):
+        """Подготовка к тесту"""
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        self.temp_db.close()
+        self.db = Database(self.temp_db.name)
+        self.creator = MafileCreator(self.db)
+        
+        # Добавить тестовый аккаунт в БД
+        self.shared_secret = base64.b64encode(b'0' * 20).decode('utf-8')
+        self.identity_secret = base64.b64encode(b'0' * 32).decode('utf-8')
+        self.account_id = self.db.add_account(
+            'test_account',
+            'test_password',
+            self.shared_secret,
+            self.identity_secret,
+            'TEST-CODE'
+        )
+    
+    def tearDown(self):
+        """Очистка после теста"""
+        if os.path.exists(self.temp_db.name):
+            os.unlink(self.temp_db.name)
+    
+    def test_create_mafile_from_account(self):
+        """Тест создания mafile из данных аккаунта"""
+        mafile_path = self.creator.create_mafile_from_account(self.account_id)
+        
+        try:
+            self.assertTrue(os.path.exists(mafile_path))
+            
+            with open(mafile_path, 'r') as f:
+                mafile = json.load(f)
+            
+            self.assertEqual(mafile['account_name'], 'test_account')
+            self.assertEqual(mafile['shared_secret'], self.shared_secret)
+        finally:
+            if os.path.exists(mafile_path):
+                os.unlink(mafile_path)
+    
+    def test_get_2fa_code(self):
+        """Тест получения 2FA кода для аккаунта"""
+        code, time_left = self.creator.get_2fa_code(self.account_id)
+        
+        self.assertEqual(len(code), 5)
+        self.assertTrue(code.isdigit())
+        self.assertGreater(time_left, 0)
+        self.assertLessEqual(time_left, 30)
+    
+    def test_validate_mafile_valid(self):
+        """Тест валидации корректного mafile"""
+        mafile_path = self.creator.create_mafile_from_account(self.account_id)
+        
+        try:
+            is_valid = self.creator.validate_mafile(mafile_path)
+            self.assertTrue(is_valid)
+        finally:
+            if os.path.exists(mafile_path):
+                os.unlink(mafile_path)
+    
+    def test_validate_mafile_invalid(self):
+        """Тест валидации некорректного mafile"""
+        # Создать невалидный mafile
+        temp_mafile = tempfile.NamedTemporaryFile(mode='w', suffix='.maFile', delete=False)
+        json.dump({'account_name': 'test'}, temp_mafile)
+        temp_mafile.close()
+        
+        try:
+            with self.assertRaises(ValueError):
+                self.creator.validate_mafile(temp_mafile.name)
+        finally:
+            if os.path.exists(temp_mafile.name):
+                os.unlink(temp_mafile.name)
+    
+    def test_list_mafiles(self):
+        """Тест получения списка mafiles"""
+        mafile_path = self.creator.create_mafile_from_account(self.account_id)
+        
+        try:
+            mafiles = self.creator.list_mafiles()
+            
+            self.assertGreater(len(mafiles), 0)
+            self.assertTrue(any(mf['account_name'] == 'test_account' for mf in mafiles))
+        finally:
+            if os.path.exists(mafile_path):
+                os.unlink(mafile_path)
+    
+    def test_delete_mafile(self):
+        """Тест удаления mafile"""
+        mafile_path = self.creator.create_mafile_from_account(self.account_id)
+        
+        self.assertTrue(os.path.exists(mafile_path))
+        
+        # Удалить mafile
+        deleted = self.creator.delete_mafile('test_account')
+        self.assertTrue(deleted)
+        self.assertFalse(os.path.exists(mafile_path))
 
 
 class TestPasswordEncryption(unittest.TestCase):
@@ -269,6 +482,7 @@ def run_tests():
     # Добавить все тесты
     suite.addTests(loader.loadTestsFromTestCase(TestDatabase))
     suite.addTests(loader.loadTestsFromTestCase(TestSteamGuard))
+    suite.addTests(loader.loadTestsFromTestCase(TestMafileCreator))
     suite.addTests(loader.loadTestsFromTestCase(TestMafileValidator))
     suite.addTests(loader.loadTestsFromTestCase(TestPasswordEncryption))
     suite.addTests(loader.loadTestsFromTestCase(TestSteamIDConverter))
