@@ -20,11 +20,11 @@ class SteamAuthApp(App):
         super().__init__(**kwargs)
         
         # Инициализировать конфигурацию и логирование
-        self.config = get_config()
+        self.app_config = get_config()
         self.logger = get_logger()
         
         log_info("=== Инициализация приложения ===")
-        log_info(f"Версия: {self.config.get('APP', 'version')}")
+        log_info(f"Версия: {self.app_config.get('APP', 'version')}")
         
         # Инициализировать базу данных и менеджер Steam Guard
         try:
@@ -36,13 +36,13 @@ class SteamAuthApp(App):
             raise
         
         # Установить параметры приложения
-        self.title = self.config.get('APP', 'name', 'Steam Auth Manager')
+        self.title = self.app_config.get('APP', 'name', 'Steam Auth Manager')
     
     def build(self):
         """Построить интерфейс приложения"""
         # Установить размер окна из конфигурации
-        window_width = self.config.get_int('UI', 'window_width', 360)
-        window_height = self.config.get_int('UI', 'window_height', 800)
+        window_width = self.app_config.get_int('UI', 'window_width', 360)
+        window_height = self.app_config.get_int('UI', 'window_height', 800)
         Window.size = (window_width, window_height)
         
         log_info(f"Размер окна: {window_width}x{window_height}")
