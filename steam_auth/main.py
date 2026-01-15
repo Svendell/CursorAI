@@ -9,7 +9,7 @@ from app.logger import get_logger, log_info, log_error
 from app.screens import (
     HomeScreen, AccountsScreen, AccountScreen, EditAccountScreen,
     ConfirmationsScreen, AddAccountScreen, ManualAddScreen,
-    CreateMafileScreen, ImportMafileScreen
+    ImportMafileScreen
 )
 
 
@@ -59,7 +59,6 @@ class SteamAuthApp(App):
             self.root.add_widget(ConfirmationsScreen(self.db, self.guard_manager, name='confirmations'))
             self.root.add_widget(AddAccountScreen(self.db, self.guard_manager, name='add_account'))
             self.root.add_widget(ManualAddScreen(self.db, name='manual_add'))
-            self.root.add_widget(CreateMafileScreen(self.db, self.guard_manager, name='create_mafile'))
             self.root.add_widget(ImportMafileScreen(self.db, self.guard_manager, name='import_mafile'))
             
             log_info("Все экраны успешно созданы")
