@@ -15,6 +15,7 @@ import os
 
 from app.database import Database
 from app.steam_guard import SteamGuardManager, MafileCreator
+from app.steam_auth import get_authenticator, AuthStatus
 
 # Установить размер окна для эмуляции мобильного устройства
 Window.size = (360, 800)
@@ -647,44 +648,68 @@ class ManualAddScreen(Screen):
 
 
 class CreateMafileScreen(Screen):
-    """Экран для создания mafile как в Steam Desktop Authenticator"""
+    """Экран для создания mafile как в Steam Desktop Authenticator (SDA)
+    
+    Многошаговый flow:
+    1. Ввод логина и пароля
+    2. Отправка кода подтверждения (email/SMS)
+    3. Ввод кода подтверждения
+    4. Создание и сохранение mafile
+    """
     
     def __init__(self, db: Database, guard_manager: SteamGuardManager, **kwargs):
         super().__init__(**kwargs)
         self.db = db
         self.guard_manager = guard_manager
+        self.authenticator = get_authenticator()
+        self.current_step = 'login'  # login, send_code, confirm_code, success
     
     def on_enter(self):
+        self.current_step = 'login'
         self.build_ui()
     
     def build_ui(self):
         self.clear_widgets()
         
+        if self.current_step == 'login':
+            self._build_login_step()
+        elif self.current_step == 'send_code':
+            self._build_send_code_step()
+        elif self.current_step == 'confirm_code':
+            self._build_confirm_code_step()
+        elif self.current_step == 'success':
+            self._build_success_step()
+    
+    def _build_login_step(self):
+        """Шаг 1: Ввод логина и пароля"""
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
         # Заголовок
         layout.add_widget(Label(
-            text='Create Mafile (Steam Desktop Authenticator)',
+            text='Create Mafile',
             size_hint_y=0.1,
             bold=True,
-            font_size='14sp'
+            font_size='18sp'
         ))
         
-        # Инструкция
-        info_layout = BoxLayout(orientation='vertical', size_hint_y=0.2, padding=5)
-        info_layout.add_widget(Label(
-            text='Enter your Steam account credentials\nand shared secret to create a mafile',
-            size_hint_y=1
-        ))
-        layout.add_widget(info_layout)
+        # Прогресс-индикатор
+        progress = Label(text='Step 1 of 3: Enter Credentials', size_hint_y=0.08, font_size='12sp')
+        layout.add_widget(progress)
         
         # Форма
-        form_layout = GridLayout(cols=1, spacing=10, size_hint_y=0.55, padding=10)
+        form_layout = GridLayout(cols=1, spacing=10, size_hint_y=0.65, padding=10)
+        
+        form_layout.add_widget(Label(
+            text='This will create a mafile using Steam authentication.\n'
+                 'Your credentials are encrypted and stored securely.',
+            size_hint_y=None,
+            height=80
+        ))
         
         # Account Name
-        form_layout.add_widget(Label(text='Account Name:', size_hint_y=None, height=30))
+        form_layout.add_widget(Label(text='Steam Account:', size_hint_y=None, height=30))
         self.account_name_input = TextInput(
-            hint_text='Steam account name',
+            hint_text='Your Steam username',
             multiline=False,
             size_hint_y=None,
             height=40
@@ -694,7 +719,7 @@ class CreateMafileScreen(Screen):
         # Password
         form_layout.add_widget(Label(text='Password:', size_hint_y=None, height=30))
         self.password_input = TextInput(
-            hint_text='Password',
+            hint_text='Your account password',
             password=True,
             multiline=False,
             size_hint_y=None,
@@ -702,24 +727,14 @@ class CreateMafileScreen(Screen):
         )
         form_layout.add_widget(self.password_input)
         
-        # Shared Secret
-        form_layout.add_widget(Label(text='Shared Secret:', size_hint_y=None, height=30))
-        self.shared_secret_input = TextInput(
-            hint_text='Base64 encoded shared secret',
-            multiline=True,
-            size_hint_y=None,
-            height=60
-        )
-        form_layout.add_widget(self.shared_secret_input)
-        
         layout.add_widget(form_layout)
         
         # Кнопки
         btn_layout = BoxLayout(size_hint_y=0.15, spacing=5)
         
-        create_btn = Button(text='Create', background_color=(0.2, 0.8, 0.2, 1))
-        create_btn.bind(on_press=self.create_mafile)
-        btn_layout.add_widget(create_btn)
+        next_btn = Button(text='Next', background_color=(0.2, 0.8, 0.2, 1))
+        next_btn.bind(on_press=self.on_login_pressed)
+        btn_layout.add_widget(next_btn)
         
         cancel_btn = Button(text='Cancel')
         cancel_btn.bind(on_press=self.go_back)
@@ -729,43 +744,254 @@ class CreateMafileScreen(Screen):
         
         self.add_widget(layout)
     
-    def create_mafile(self, instance):
+    def on_login_pressed(self, instance):
+        """Обработка нажатия кнопки Login"""
+        account_name = self.account_name_input.text.strip()
+        password = self.password_input.text.strip()
+        
+        if not account_name or not password:
+            self._show_error('Please enter both account and password')
+            return
+        
+        # Попытка авторизации
+        success, message = self.authenticator.login(account_name, password)
+        
+        if success:
+            # Авторизация успешна
+            self.current_step = 'send_code'
+            self.build_ui()
+        else:
+            # Нужен код подтверждения
+            self.current_step = 'send_code'
+            self.build_ui()
+    
+    def _build_send_code_step(self):
+        """Шаг 2: Отправка кода подтверждения"""
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        
+        # Заголовок
+        layout.add_widget(Label(
+            text='Verify Your Account',
+            size_hint_y=0.1,
+            bold=True,
+            font_size='18sp'
+        ))
+        
+        # Прогресс-индикатор
+        progress = Label(text='Step 2 of 3: Verify via Email/SMS', size_hint_y=0.08, font_size='12sp')
+        layout.add_widget(progress)
+        
+        # Контент
+        content_layout = GridLayout(cols=1, spacing=15, size_hint_y=0.65, padding=10)
+        
+        content_layout.add_widget(Label(
+            text='Steam will send you a verification code.\n'
+                 'Please choose how to receive it:',
+            size_hint_y=None,
+            height=60
+        ))
+        
+        # Кнопки выбора способа получения кода
+        method_layout = GridLayout(cols=1, spacing=10, size_hint_y=None, height=100)
+        
+        email_btn = Button(text='Send Code to Email', size_hint_y=None, height=40)
+        email_btn.bind(on_press=self.on_send_code_pressed)
+        method_layout.add_widget(email_btn)
+        
+        sms_btn = Button(text='Send Code via SMS', size_hint_y=None, height=40)
+        sms_btn.bind(on_press=self.on_send_code_pressed)
+        method_layout.add_widget(sms_btn)
+        
+        content_layout.add_widget(method_layout)
+        
+        content_layout.add_widget(Label(
+            text='A verification code will be sent to your registered email or phone.',
+            size_hint_y=None,
+            height=50
+        ))
+        
+        layout.add_widget(content_layout)
+        
+        # Кнопки
+        btn_layout = BoxLayout(size_hint_y=0.15, spacing=5)
+        
+        back_btn = Button(text='Back')
+        back_btn.bind(on_press=self.go_back_step)
+        btn_layout.add_widget(back_btn)
+        
+        cancel_btn = Button(text='Cancel')
+        cancel_btn.bind(on_press=self.go_back)
+        btn_layout.add_widget(cancel_btn)
+        
+        layout.add_widget(btn_layout)
+        
+        self.add_widget(layout)
+    
+    def on_send_code_pressed(self, instance):
+        """Отправить код подтверждения"""
         try:
-            # Добавить аккаунт в БД
-            account_id = self.db.add_account(
-                account_name=self.account_name_input.text,
-                password=self.password_input.text,
-                shared_secret=self.shared_secret_input.text
-            )
-            
-            # Создать mafile
-            account = self.db.get_account(account_id)
-            mafile_path = self.guard_manager.create_mafile_from_dict(account)
-            
-            content = BoxLayout(orientation='vertical')
-            content.add_widget(Label(text=f'Mafile created successfully!\nSaved to: {mafile_path}'))
-            btn = Button(text='OK', size_hint_y=0.3)
-            
-            popup = Popup(title='Success', content=content, size_hint=(0.9, 0.4))
-            btn.bind(on_press=popup.dismiss)
-            btn.bind(on_press=self.go_to_accounts)
-            content.add_widget(btn)
-            popup.open()
+            self.authenticator.send_code()
+            self.current_step = 'confirm_code'
+            self.build_ui()
         except Exception as e:
-            content = BoxLayout(orientation='vertical')
-            content.add_widget(Label(text=f'Error: {str(e)}'))
-            btn = Button(text='OK', size_hint_y=0.3)
+            self._show_error(f'Failed to send code: {str(e)}')
+    
+    def _build_confirm_code_step(self):
+        """Шаг 3: Ввод кода подтверждения"""
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        
+        # Заголовок
+        layout.add_widget(Label(
+            text='Enter Verification Code',
+            size_hint_y=0.1,
+            bold=True,
+            font_size='18sp'
+        ))
+        
+        # Прогресс-индикатор
+        progress = Label(text='Step 3 of 3: Confirm Code', size_hint_y=0.08, font_size='12sp')
+        layout.add_widget(progress)
+        
+        # Форма
+        form_layout = GridLayout(cols=1, spacing=10, size_hint_y=0.65, padding=10)
+        
+        form_layout.add_widget(Label(
+            text='Enter the 5-digit code you received:',
+            size_hint_y=None,
+            height=40
+        ))
+        
+        # Code input
+        self.code_input = TextInput(
+            hint_text='00000',
+            multiline=False,
+            size_hint_y=None,
+            height=50,
+            input_filter='int'
+        )
+        form_layout.add_widget(self.code_input)
+        
+        form_layout.add_widget(Label(
+            text='Once you confirm this code, your mafile will be created.',
+            size_hint_y=None,
+            height=40
+        ))
+        
+        layout.add_widget(form_layout)
+        
+        # Кнопки
+        btn_layout = BoxLayout(size_hint_y=0.15, spacing=5)
+        
+        confirm_btn = Button(text='Confirm', background_color=(0.2, 0.8, 0.2, 1))
+        confirm_btn.bind(on_press=self.on_confirm_code_pressed)
+        btn_layout.add_widget(confirm_btn)
+        
+        cancel_btn = Button(text='Cancel')
+        cancel_btn.bind(on_press=self.go_back)
+        btn_layout.add_widget(cancel_btn)
+        
+        layout.add_widget(btn_layout)
+        
+        self.add_widget(layout)
+    
+    def on_confirm_code_pressed(self, instance):
+        """Обработка подтверждения кода"""
+        code = self.code_input.text.strip()
+        
+        if not code or len(code) != 5:
+            self._show_error('Please enter a valid 5-digit code')
+            return
+        
+        try:
+            success, message = self.authenticator.confirm_code(code)
             
-            popup = Popup(title='Error', content=content, size_hint=(0.9, 0.3))
-            btn.bind(on_press=popup.dismiss)
-            content.add_widget(btn)
-            popup.open()
+            if success:
+                # Создать mafile
+                mafile_data = self.authenticator.get_mafile_data()
+                account_id = self.db.add_account(
+                    account_name=mafile_data.get('account_name', 'unknown'),
+                    password='',  # Пароль уже использован и подтвержден
+                    shared_secret=mafile_data.get('shared_secret', ''),
+                    identity_secret=mafile_data.get('identity_secret', ''),
+                    revocation_code=mafile_data.get('revocation_code', '')
+                )
+                
+                # Создать файл mafile
+                account = self.db.get_account(account_id)
+                mafile_path = self.guard_manager.create_mafile_from_dict(account)
+                
+                self.current_step = 'success'
+                self.build_ui()
+            else:
+                self._show_error(f'Invalid code: {message}')
+        except Exception as e:
+            self._show_error(f'Error: {str(e)}')
+    
+    def _build_success_step(self):
+        """Шаг успеха: mafile создан"""
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        
+        layout.add_widget(Label(
+            text='✓ Success!',
+            size_hint_y=0.2,
+            bold=True,
+            font_size='24sp',
+            color=(0.2, 0.8, 0.2, 1)
+        ))
+        
+        content = GridLayout(cols=1, spacing=10, size_hint_y=0.65, padding=10)
+        
+        content.add_widget(Label(
+            text='Your mafile has been created successfully!\n\n'
+                 'The account has been added to your database\n'
+                 'and is ready for 2FA code generation.',
+            size_hint_y=None,
+            height=120
+        ))
+        
+        layout.add_widget(content)
+        
+        # Кнопки
+        btn_layout = BoxLayout(size_hint_y=0.15, spacing=5)
+        
+        finish_btn = Button(text='Done', background_color=(0.2, 0.8, 0.2, 1))
+        finish_btn.bind(on_press=self.on_finish)
+        btn_layout.add_widget(finish_btn)
+        
+        layout.add_widget(btn_layout)
+        
+        self.add_widget(layout)
+    
+    def on_finish(self, instance):
+        """Завершить создание mafile"""
+        self.authenticator.reset()
+        self.manager.current = 'accounts'
+    
+    def go_back_step(self, instance):
+        """Вернуться на предыдущий шаг"""
+        if self.current_step == 'send_code':
+            self.current_step = 'login'
+            self.build_ui()
+        elif self.current_step == 'confirm_code':
+            self.current_step = 'send_code'
+            self.build_ui()
     
     def go_back(self, instance):
+        """Отмена и возврат на экран выбора метода добавления"""
+        self.authenticator.reset()
         self.manager.current = 'add_account'
     
-    def go_to_accounts(self, instance):
-        self.manager.current = 'accounts'
+    def _show_error(self, message):
+        """Показать диалог с ошибкой"""
+        content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        content.add_widget(Label(text=message))
+        
+        btn = Button(text='OK', size_hint_y=0.3)
+        content.add_widget(btn)
+        
+        popup = Popup(title='Error', content=content, size_hint=(0.9, 0.4))
+        btn.bind(on_press=popup.dismiss)
+        popup.open()
 
 
 class ImportMafileScreen(Screen):

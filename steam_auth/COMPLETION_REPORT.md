@@ -19,12 +19,13 @@
 ✓ app/encryption.py          200 строк
 ✓ app/config.py              250 строк
 ✓ app/logger.py              150 строк
-✓ app/screens.py            1200+ строк
+✓ app/steam_auth.py          348 строк (НОВЫЙ - SDA-подобная авторизация)
+✓ app/screens.py            1500+ строк (ОБНОВЛЕНО - многошаговый flow CreateMafile)
 ✓ tests.py                   400 строк
 ✓ example.py                 200 строк
 ✓ app/__init__.py             12 строк
 
-ИТОГО PYTHON: 2601 строка
+ИТОГО PYTHON: 3000+ строк
 ```
 
 ### Документация

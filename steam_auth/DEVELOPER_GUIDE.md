@@ -12,6 +12,7 @@
            ↓         ↑
 ┌─────────────────────────────────────────┐
 │      BUSINESS LOGIC LAYER               │
+│  ├─ steam_auth.py (Аутентификация SDA)  │
 │  ├─ steam_guard.py (Steam Guard)        │
 │  ├─ steam_utils.py (Утилиты)            │
 │  └─ encryption.py (Криптография)        │
@@ -100,6 +101,23 @@ def test_export_json(self):
 ## 📊 Диаграмма классов
 
 ```
+SteamAuthenticator (NEW - v1.1)
+├── login(account_name, password) → (success, message)
+├── send_code() → void
+├── confirm_code(code) → (success, message)
+├── confirm_device() → (success, message)
+├── get_mafile_data() → Dict
+├── reset() → void
+└── AuthStatus (enum)
+    ├── IDLE
+    ├── LOGGING_IN
+    ├── EMAIL_CODE_NEEDED
+    ├── SMS_CODE_NEEDED
+    ├── AUTHENTICATOR_CODE_NEEDED
+    ├── DEVICE_CONFIRMATION_NEEDED
+    ├── SUCCESS
+    └── FAILED
+
 Database
 ├── add_account()
 ├── get_account()
@@ -135,7 +153,7 @@ Screen (Kivy)
 ├── ConfirmationsScreen
 ├── AddAccountScreen
 ├── ManualAddScreen
-├── CreateMafileScreen
+├── CreateMafileScreen (ОБНОВЛЕНО - многошаговый SDA-flow)
 └── ImportMafileScreen
 ```
 

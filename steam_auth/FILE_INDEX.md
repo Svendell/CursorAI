@@ -23,12 +23,13 @@
 #### Пакет app/
 - **[app/__init__.py](app/__init__.py)** - инициализация пакета
 - **[app/database.py](app/database.py)** - работа с SQLite БД (340 строк)
+- **[app/steam_auth.py](app/steam_auth.py)** - SDA-подобная авторизация (348 строк) **[НОВОЕ в v1.1]**
 - **[app/steam_guard.py](app/steam_guard.py)** - Steam Guard и mafiles (250 строк)
 - **[app/steam_utils.py](app/steam_utils.py)** - утилиты для Steam (380 строк)
 - **[app/encryption.py](app/encryption.py)** - шифрование паролей (200 строк)
 - **[app/config.py](app/config.py)** - управление конфигурацией (250 строк)
 - **[app/logger.py](app/logger.py)** - система логирования (150 строк)
-- **[app/screens.py](app/screens.py)** - все экраны Kivy (1200+ строк)
+- **[app/screens.py](app/screens.py)** - все экраны Kivy (1500+ строк) **[ОБНОВЛЕНО в v1.1]**
 
 #### Тесты и примеры
 - **[tests.py](tests.py)** - модульные тесты (400 строк, 20+ тестов)
@@ -53,12 +54,13 @@
 |------|-------|-----|---------|
 | main.py | 100 | Python | Точка входа |
 | app/database.py | 340 | Python | БД |
+| app/steam_auth.py | 348 | Python | SDA авторизация [NEW] |
 | app/steam_guard.py | 250 | Python | Steam Guard |
 | app/steam_utils.py | 380 | Python | Утилиты |
 | app/encryption.py | 200 | Python | Криптография |
 | app/config.py | 250 | Python | Конфигурация |
 | app/logger.py | 150 | Python | Логирование |
-| app/screens.py | 1200+ | Python | UI (9 экранов) |
+| app/screens.py | 1500+ | Python | UI (9 экранов) [UPDATED] |
 | tests.py | 400 | Python | Тесты |
 | example.py | 200 | Python | Примеры |
 | README.md | 350 | Документация | Основное |
@@ -75,7 +77,7 @@
 | setup.sh | 70 | Script | Linux/Mac |
 | setup.bat | 70 | Script | Windows |
 
-**Всего: ~6000+ строк кода и документации**
+**Всего: ~6300+ строк кода и документации**
 
 ---
 
