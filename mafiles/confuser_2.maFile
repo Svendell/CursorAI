@@ -1,0 +1,25 @@
+{
+  "account_name": "confuser",
+  "shared_secret": "shared2",
+  "identity_secret": "identity_example",
+  "serial_number": "hAZddFPPF3Ki",
+  "revocation_code": "U5jP34U2EtesSI6IhUTg",
+  "time_created": 1768545869,
+  "uri": "",
+  "pending_confirmations": [
+    {
+      "id": 2,
+      "title": "Login 2",
+      "time": 1768545869
+    }
+  ],
+  "confirmed_history": [
+    {
+      "id": 1,
+      "title": "Trade 1",
+      "time": 1768545869,
+      "accepted": true,
+      "handled_at": 1768545869
+    }
+  ]
+}

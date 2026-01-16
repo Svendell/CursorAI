@@ -1,0 +1,238 @@
+# Kivy layout for the Steam-like mobile app
+
+<MainScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Label:
+                text: 'Steam Mobile Authenticator (demo)'
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Accounts : '
+                size_hint_x: 0.6
+                on_release: app.root.current = 'accounts'
+            Label:
+                id: accounts_count
+                text: '0'
+                size_hint_x: 0.4
+
+<AccountsScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Back'
+                on_release: app.root.current = 'main'
+            Button:
+                text: 'Add Account'
+                on_release: app.root.current = 'add'
+        BoxLayout:
+            size_hint_y: 0.7
+            ScrollView:
+                do_scroll_x: False
+                GridLayout:
+                    id: accounts_grid
+                    cols: 1
+                    size_hint_y: None
+                    height: self.minimum_height
+                    row_default_height: '64dp'
+                    row_force_default: True
+                    spacing: 4
+                    padding: 4
+                    # rendered from Python
+                    on_parent: root.load()
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Prev'
+                on_release: root.prev_page()
+            Button:
+                text: 'Next'
+                on_release: root.next_page()
+
+<AccountScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Back'
+                on_release: app.root.current = 'accounts'
+        Label:
+            id: account_name
+            text: ''
+            size_hint_y: None
+            height: '36dp'
+        Label:
+            text: 'Password:'
+            size_hint_y: None
+            height: '24dp'
+        Label:
+            id: account_password
+            text: ''
+            size_hint_y: None
+            height: '24dp'
+        Label:
+            text: 'Shared Secret:'
+            size_hint_y: None
+            height: '24dp'
+        Label:
+            id: account_shared
+            text: ''
+            size_hint_y: None
+            height: '24dp'
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Delete'
+                on_release: root.delete()
+            Button:
+                text: 'Edit'
+                on_release: root.edit()
+            Button:
+                text: 'Confirmations'
+                on_release: root.confirmations()
+
+<AddAccountScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Back'
+                on_release: app.root.current = 'accounts'
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Добавить в ручную'
+                on_release: root.on_manual_add()
+            Button:
+                text: 'Создать mafile'
+                on_release: root.on_create_mafile()
+            Button:
+                text: 'Импорт mafile'
+                on_release: app.root.current = 'add_manual'
+
+<AddManualScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Back'
+                on_release: app.root.current = 'add'
+        GridLayout:
+            cols: 2
+            size_hint_y: None
+            height: '220dp'
+            Label:
+                text: 'Account name:'
+            TextInput:
+                id: input_name
+                multiline: False
+            Label:
+                text: 'Password:'
+            TextInput:
+                id: input_password
+                multiline: False
+            Label:
+                text: 'Shared secret:'
+            TextInput:
+                id: input_shared
+                multiline: False
+            Label:
+                text: 'Identity secret:'
+            TextInput:
+                id: input_identity
+                multiline: False
+        Button:
+            text: 'Добавить'
+            size_hint_y: None
+            height: '48dp'
+            on_release: root.add_account()
+
+<EditAccountScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Back'
+                on_release: app.root.current = 'account'
+        GridLayout:
+            cols: 2
+            size_hint_y: None
+            height: '220dp'
+            Label:
+                text: 'Account name:'
+            TextInput:
+                id: edit_name
+                multiline: False
+            Label:
+                text: 'Password:'
+            TextInput:
+                id: edit_password
+                multiline: False
+            Label:
+                text: 'Shared secret:'
+            TextInput:
+                id: edit_shared
+                multiline: False
+            Label:
+                text: 'Identity secret:'
+            TextInput:
+                id: edit_identity
+                multiline: False
+        Button:
+            text: 'Save'
+            size_hint_y: None
+            height: '48dp'
+            on_release: root.save()
+
+<ConfirmationsScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 8
+        spacing: 8
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+            Button:
+                text: 'Back'
+                on_release: app.root.current = 'account'
+        ScrollView:
+            GridLayout:
+                id: conf_grid
+                cols: 1
+                size_hint_y: None
+                height: self.minimum_height
+                row_default_height: '72dp'
+                row_force_default: True
+                spacing: 6
+                padding: 6
+                # confirmations are loaded from Python and should add widgets dynamically

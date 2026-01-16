@@ -1,0 +1,9 @@
+{
+  "account_name": "testuser",
+  "shared_secret": "shared_secret_example",
+  "identity_secret": "",
+  "serial_number": "Ep1zbv9DY6uP",
+  "revocation_code": "IZJio4O9tuvoKXLSN0LP",
+  "time_created": 1768545700,
+  "uri": ""
+}

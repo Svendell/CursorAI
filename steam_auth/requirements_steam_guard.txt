@@ -1,3 +1,0 @@
-cryptography>=41.0.0
-kivy>=2.3.1
-pydroid3
